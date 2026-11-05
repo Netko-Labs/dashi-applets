@@ -1,0 +1,5 @@
+# Reviewed, pulled, and Dashi's key are the maintainers' to change.
+/applets/*/review.json @Netko-Labs/maintainers
+/applets/*/pulled.json @Netko-Labs/maintainers
+/keys/ @Netko-Labs/maintainers
+/.github/ @Netko-Labs/maintainers

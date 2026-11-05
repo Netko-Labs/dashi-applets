@@ -1,0 +1,17 @@
+{
+  "name": "dashi-applets",
+  "private": true,
+  "type": "module",
+  "description": "Dashi's applet catalog: one folder per applet; CI builds, checks, releases, and signs the index the Applet Store reads.",
+  "scripts": {
+    "check": "bun scripts/check.ts",
+    "index": "bun scripts/build-index.ts",
+    "test": "bun test",
+    "typecheck": "tsc --noEmit -p ."
+  },
+  "devDependencies": {
+    "@types/bun": "^1.2.0",
+    "typescript": "^5.9.0"
+  },
+  "packageManager": "bun@1.4.4"
+}

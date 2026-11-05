@@ -1,0 +1,132 @@
+# The catalog's CI (README.md): on a pull request, check every folder and
+# rebuild each new version from its pinned source, refusing it unless the
+# bytes are the package its author signed; on main, release the new
+# packages, build index.json, sign it with Dashi's key, and publish both on
+# the `index` branch, where the Applet Store reads them.
+name: catalog
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+env:
+  # The Bun every package is built with (package.json's packageManager): the same source and Bun make the same bytes.
+  BUN_VERSION: 1.4.4
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      fresh: ${{ steps.check.outputs.fresh }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: dashi-applets
+          fetch-depth: 0
+      # The applet SDK (@dashi/applet) and mirin, beside the catalog, where scripts/sdk.ts and rebuild.ts find them.
+      - uses: actions/checkout@v4
+        with:
+          repository: Netko-Labs/dashiOS
+          ref: main
+          path: dashiOS
+      - uses: actions/checkout@v4
+        with:
+          repository: Netko-Labs/mirin
+          ref: feat/metal-linux
+          path: mirin
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+      - name: Check every folder, and list the new versions
+        id: check
+        working-directory: dashi-applets
+        env:
+          BASE: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || github.event.before }}
+        run: |
+          bun scripts/check.ts --base "$BASE" > ../fresh.txt
+          cat ../fresh.txt
+          { echo 'fresh<<EOF'; cat ../fresh.txt; echo EOF; } >> "$GITHUB_OUTPUT"
+      - name: Rebuild each new version from its source
+        working-directory: dashi-applets
+        run: |
+          mkdir -p ../release
+          while read -r id version; do
+            [ -n "$id" ] || continue
+            bun scripts/rebuild.ts "$id" "$version" --out ../release
+          done < ../fresh.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release
+          path: release
+          if-no-files-found: ignore
+
+  publish:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: check
+    runs-on: ubuntu-latest
+    # The environment holds Dashi's index key; its protection rules say who may run this.
+    environment: catalog-signing
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: dashi-applets
+          fetch-depth: 0
+      - uses: actions/checkout@v4
+        with:
+          repository: Netko-Labs/dashiOS
+          ref: main
+          path: dashiOS
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: release
+          path: release
+        continue-on-error: true
+      - name: Release the new packages (the authors' signatures beside them)
+        working-directory: dashi-applets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FRESH: ${{ needs.check.outputs.fresh }}
+        run: |
+          echo "$FRESH" | while read -r id version; do
+            [ -n "$id" ] || continue
+            tag="$id-$version"
+            gh release view "$tag" >/dev/null 2>&1 && continue
+            gh release create "$tag" "../release/$tag.dashi-applet" "../release/$tag.dashi-applet.minisig" \
+              --title "$id $version" --notes "Built from $(jq -r '.url + " @ " + .commit' "applets/$id/source.json")."
+          done
+      - name: Build the index
+        working-directory: dashi-applets
+        run: bun scripts/build-index.ts --repo "${{ github.repository }}" --out ../index
+      - name: Sign it with Dashi's key
+        env:
+          DASHI_INDEX_KEY: ${{ secrets.DASHI_INDEX_KEY }}
+          DASHI_INDEX_KEY_PASSWORD: ${{ secrets.DASHI_INDEX_KEY_PASSWORD }}
+        run: |
+          sudo apt-get install -y minisign
+          umask 077
+          printf '%s\n' "$DASHI_INDEX_KEY" > "$RUNNER_TEMP/index.key"
+          printf '%s\n' "$DASHI_INDEX_KEY_PASSWORD" | minisign -S -s "$RUNNER_TEMP/index.key" -m index/index.json -t "dashi-applets index $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          shred -u "$RUNNER_TEMP/index.key"
+      - name: Check the signature as the store will
+        working-directory: dashi-applets
+        run: bun scripts/verify-index.ts ../index/index.json keys/dashi-index.pub
+      - name: Publish on the index branch
+        working-directory: dashi-applets
+        run: |
+          git config user.name "dashi-applets CI"
+          git config user.email "hi@peje.dev"
+          git fetch origin index || true
+          if git rev-parse --verify -q origin/index >/dev/null; then git switch -c index origin/index; else git switch --orphan index; git rm -rq --cached . || true; fi
+          cp ../index/index.json ../index/index.json.minisig .
+          git add index.json index.json.minisig
+          git commit -m "index: $(date -u +%Y-%m-%dT%H:%M:%SZ)" || exit 0
+          git push origin index
