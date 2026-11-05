@@ -101,7 +101,7 @@ All signatures are Ed25519 in minisign's format.
   `minisign -G -p keys/dashi-index.pub -s dashi-index.key` (encrypted with a
   passphrase) on an offline machine. The public half is committed here as
   `keys/dashi-index.pub` and in the Applet Store
-  (dashiOS `packages/shell/apps/applet-store/keys.ts`). The secret half and
+  (dashiOS `packages/shell/src/applet-store/keys.ts`). The secret half and
   its passphrase are this repository's Actions secrets `DASHI_INDEX_KEY` and
   `DASHI_INDEX_KEY_PASSWORD`, in the `catalog-signing` environment, which
   only the publish job on `main` can use; keep an offline copy. To rotate:
