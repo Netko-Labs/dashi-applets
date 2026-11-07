@@ -1,5 +1,59 @@
 {
   "format": 1,
-  "generated": "2026-11-07T14:54:04.937Z",
-  "applets": []
+  "generated": "2026-11-07T14:56:45.823Z",
+  "applets": [
+    {
+      "manifest": {
+        "id": "dev.netko.asus-control",
+        "name": "ASUS Control",
+        "version": "0.1.0",
+        "dashi": ">=0.4",
+        "entry": "src/main.tsx",
+        "summary": "Fans, power and lights for ROG and TUF laptops.",
+        "description": "Power modes in sync with Fn F5, their recipes plugged in and on battery, fan curves you drag, the lid's Slash bar previewed as it will play, the keyboard light, sensors with an hour of history, and the advanced controls: the Curve Optimizer with a countdown, power limits, boost and the graphics card's limits. On top of Dashi's own power modes, not beside them.",
+        "author": {
+          "name": "Netko Labs",
+          "url": "https://github.com/Netko-Labs"
+        },
+        "license": "MIT",
+        "source": "https://github.com/Netko-Labs/asus-control",
+        "categories": [
+          "hardware"
+        ],
+        "when": {
+          "vendor": [
+            "ASUSTeK COMPUTER INC."
+          ],
+          "laptop": true
+        },
+        "permissions": [
+          "hardware.power",
+          "hardware.lighting",
+          "hardware.fans",
+          "hardware.tuning",
+          "dbus.system:xyz.ljones.Asusd"
+        ],
+        "screenshots": []
+      },
+      "authorKey": "RWTBazNCQ5OyqXV4qx2JNMYjn+H0Ji1FIjKxWVhg/lu/6rffaqokDeWy",
+      "reviewed": false,
+      "source": {
+        "url": "https://github.com/Netko-Labs/asus-control",
+        "commit": "bc5e9663b252e961a8501237b475252cedb1ea7b"
+      },
+      "screenshots": [],
+      "versions": [
+        {
+          "version": "0.1.0",
+          "dashi": ">=0.4",
+          "url": "https://github.com/Netko-Labs/dashi-applets/releases/download/dev.netko.asus-control-0.1.0/dev.netko.asus-control-0.1.0.dashi-applet",
+          "sha256": "80141ad83e1bbf1080e31c50b78d2375b7cfd989287a3827ba057c97323efc4d",
+          "size": 110260,
+          "signature": "untrusted comment: signature from minisign secret key\nRUTBazNCQ5OyqbrUhGoq6p9yXyM+QDA2clnA4wvgwdOp49KR9s5sJWsiZ0WCNnjil6BEJexd3x9FbS976yxlqV37mQV9l+YvTwo=\ntrusted comment: dashi-applet dev.netko.asus-control 0.1.0 sha256:80141ad83e1bbf1080e31c50b78d2375b7cfd989287a3827ba057c97323efc4d\nhntQUeNXZ8VoysWinpcNbLsIzf4SFnbeTMcBlIIsMS0YG8VgtKFWzA+YTBki5lPScMJi/ndnuU3WHLjlnLkoBw==\n",
+          "released": "2026-11-07"
+        }
+      ],
+      "pulled": []
+    }
+  ]
 }
