@@ -26,7 +26,7 @@ branch of your checkout of this repository and says what to run.
 applets/<id>/applet.json            the manifest (its schema: dashiOS packages/applet/manifest.schema.json)
 applets/<id>/source.json            {"url": "https://github.com/OWNER/REPO", "commit": "<40 hex>"}: what CI builds
 applets/<id>/author.pub             the author's minisign public key; the first pull request sets it, none changes it
-applets/<id>/versions/<v>.json      {"sha256", "size", "released", "bun", "notes"?}: the package the author built
+applets/<id>/versions/<v>.json      {"sha256", "size", "released", "bun", "notes"?, "sdk"?}: the package the author built
 applets/<id>/versions/<v>.minisig   the author's signature on that package
 applets/<id>/screenshots/…, icon    what applet.json names
 applets/<id>/review.json            {"reviewed": true, "by": "…"}: maintainers only (CODEOWNERS)
@@ -45,6 +45,13 @@ On every pull request, `scripts/check.ts`:
 - against the base: no `author.pub` changed (an update must be signed by the
   same key; a new key is a new applet), and no released version's files
   changed or went (a bad release is pulled, not rewritten).
+
+A package bundles the Dashi SDK and mirin it was built against, so a
+version names those commits: `"sdk": {"dashiOS": "<40 hex>", "mirin": "<40 hex>"}`
+(pushed commits of Netko-Labs/dashiOS and Netko-Labs/mirin). The rebuild
+fetches exactly those, side by side with the applet as an author's checkouts
+are, and packs with that Dashi's own SDK. Without `sdk`, it uses CI's
+checkouts of `main` and `feat/metal-linux`.
 
 Then `scripts/rebuild.ts` builds each new version from its source at the
 pinned commit (its dependencies on Dashi's SDK and mirin pointed at CI's
