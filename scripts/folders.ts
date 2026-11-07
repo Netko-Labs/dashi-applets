@@ -16,6 +16,8 @@ export interface VersionFile {
   /** The Bun that built it: the catalog rebuilds with the same. */
   bun: string;
   notes?: string;
+  /** The Dashi and mirin commits it was built against (pack bundles both): the catalog rebuilds against the same. */
+  sdk?: { dashiOS: string; mirin: string };
   /** The author's .minisig over the package. */
   signature: string;
 }
@@ -41,13 +43,17 @@ function readVersion(dir: string, name: string): VersionFile | string {
   const sigPath = join(dir, "versions", `${version}.minisig`);
   if (!existsSync(sigPath)) return `versions/${version}.minisig is missing`;
   const value = json(join(dir, "versions", name));
-  const stray = Object.keys(value).find((key) => !["sha256", "size", "released", "bun", "notes"].includes(key));
+  const stray = Object.keys(value).find((key) => !["sha256", "size", "released", "bun", "notes", "sdk"].includes(key));
   if (stray) return `versions/${name} has an unknown field “${stray}”`;
   if (typeof value.sha256 !== "string" || !/^[0-9a-f]{64}$/.test(value.sha256)) return `versions/${name}: sha256 must be 64 hex digits`;
   if (typeof value.size !== "number" || !Number.isInteger(value.size) || value.size <= 0) return `versions/${name}: size is wrong`;
   if (typeof value.released !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value.released)) return `versions/${name}: released must be YYYY-MM-DD`;
   if (typeof value.bun !== "string" || !/^\d+\.\d+\.\d+$/.test(value.bun)) return `versions/${name}: bun must be the Bun version that built it`;
   if (value.notes !== undefined && typeof value.notes !== "string") return `versions/${name}: notes must be text`;
+  const sdk = value.sdk as Record<string, unknown> | undefined;
+  const isCommit = (each: unknown): each is string => typeof each === "string" && /^[0-9a-f]{40}$/.test(each);
+  if (sdk !== undefined && (typeof sdk !== "object" || sdk === null || !isCommit(sdk.dashiOS) || !isCommit(sdk.mirin) || Object.keys(sdk).length !== 2))
+    return `versions/${name}: sdk must be {"dashiOS": "<40 hex>", "mirin": "<40 hex>"}, the commits it was built against`;
   return {
     version,
     sha256: value.sha256,
@@ -55,6 +61,7 @@ function readVersion(dir: string, name: string): VersionFile | string {
     released: value.released,
     bun: value.bun,
     ...(typeof value.notes === "string" ? { notes: value.notes } : {}),
+    ...(sdk ? { sdk: { dashiOS: sdk.dashiOS as string, mirin: sdk.mirin as string } } : {}),
     signature: readFileSync(sigPath, "utf8"),
   };
 }
