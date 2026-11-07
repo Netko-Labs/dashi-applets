@@ -1,7 +1,7 @@
 # keys/
 
 `dashi-index.pub` is the public half of Dashi's index key (README.md, "Keys"):
-key id A9B2934342336BC1. The publish job checks every index it signs against
+key id 0316A9AD4F0EF2CF. The publish job checks every index it signs against
 it, and Dashi's store ships the same key (dashiOS
 `packages/shell/src/applet-store/keys.ts`). The secret half, locked with a
 passphrase, is in the `catalog-signing` environment's secrets
