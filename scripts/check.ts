@@ -5,6 +5,9 @@
  *   folder is its id, the source is pinned, the key is a minisign key;
  * - every version's signature is the author's key's (over the package's
  *   bytes as listed: the rebuild, rebuild.ts, checks the bytes themselves);
+ * - the index builds from the folders (build-index.ts, nothing written): every
+ *   entry reads with Dashi's parser, none would be skipped, and every version
+ *   has its own Dashi range, so that shows here rather than after the merge;
  * - with --base: no author.pub changed (an update must be signed by the same
  *   key), no released version's files changed or went, and review.json and
  *   pulled.json changed only by maintainers (CODEOWNERS enforces who; this
@@ -14,6 +17,7 @@
  * are new against the base, one `id version` per line, on stdout.
  */
 
+import { buildIndex } from "./build-index.ts";
 import { verifySignatureOnly } from "./verify.ts";
 import { readCatalog } from "./folders.ts";
 
@@ -31,6 +35,15 @@ for (const applet of applets) {
     if (version.bun !== BUN) messages.push(`${applet.id} ${version.version}: built with Bun ${version.bun}; the catalog builds with ${BUN}, so pack it with that one`);
     const checked = verifySignatureOnly(version.signature, applet.authorKey, applet.id, version);
     if (checked !== true) messages.push(`${applet.id} ${version.version}: ${checked}`);
+  }
+}
+
+// The folders' problems are listed already; the index is built once they read.
+if (problems.length === 0) {
+  try {
+    buildIndex(root, "Netko-Labs/dashi-applets");
+  } catch (error) {
+    messages.push(...(error instanceof Error ? error.message : String(error)).split("\n").map((line) => `the index: ${line}`));
   }
 }
 
