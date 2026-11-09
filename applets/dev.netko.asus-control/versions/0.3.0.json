@@ -1,0 +1,10 @@
+{
+  "sha256": "d00da9b66fe62ff1a012f1dce7fb95162b3cba80755784c9c64dfc4184098dab",
+  "size": 119316,
+  "released": "2026-11-08",
+  "bun": "1.4.4",
+  "sdk": {
+    "dashiOS": "f0a3888da46ca1d00616edabb2f4800b276eedb7",
+    "mirin": "283eb3c1cf63070ef4b84000847bdc02e3433be6"
+  }
+}
