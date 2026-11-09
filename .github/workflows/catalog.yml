@@ -41,6 +41,12 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: ${{ env.BUN_VERSION }}
+      - name: Test and typecheck
+        working-directory: dashi-applets
+        run: |
+          bun install --frozen-lockfile
+          bun test
+          bun run typecheck
       - name: Check every folder, and list the new versions
         id: check
         working-directory: dashi-applets

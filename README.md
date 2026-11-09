@@ -35,7 +35,8 @@ applets/<id>/pulled.json            [{"version", "reason"}]: maintainers only, t
 
 ## What CI checks (`.github/workflows/catalog.yml`)
 
-On every pull request, `scripts/check.ts`:
+On every pull request (and on `main`), `bun test` and the typecheck run;
+then `scripts/check.ts`:
 
 - every folder reads: the manifest validates, the folder is its id, the
   source is a pinned GitHub commit, the key is a minisign key;
@@ -44,7 +45,10 @@ On every pull request, `scripts/check.ts`:
 - it was built with the catalog's Bun (`package.json`'s `packageManager`);
 - against the base: no `author.pub` changed (an update must be signed by the
   same key; a new key is a new applet), and no released version's files
-  changed or went (a bad release is pulled, not rewritten).
+  changed or went (a bad release is pulled, not rewritten);
+- the index builds from the folders, as `main` would build it (nothing is
+  written): every entry reads with Dashi's parser, none would be skipped, and
+  every version has its own Dashi range (below).
 
 A package bundles the Dashi SDK and mirin it was built against, so a
 version names those commits: `"sdk": {"dashiOS": "<40 hex>", "mirin": "<40 hex>"}`
@@ -92,6 +96,18 @@ Format 1, parsed by the store with dashiOS `packages/applet/src/catalog.ts`
   }]
 }
 ```
+
+Each version's `dashi` is the range its own `applet.json` named: the folder
+keeps only the newest `applet.json`, so `build-index.ts` reads an older
+version's from `main`'s history (first parent, so a pull request's commits
+along the way don't count), and needs the whole history (`fetch-depth: 0`).
+A version no `applet.json` names fails the build.
+
+Dashi's store reads the index entry by entry and skips one it can't read
+("1 applet needs a newer Dashi"); older Dashis refuse the whole index. Either
+way `build-index.ts` refuses it: an entry the parser in CI's Dashi checkout
+(`main`) wouldn't list fails the build, with the parser's reason, and no
+index is written.
 
 `index.json.minisig` beside it is Dashi's signature. The store checks, before
 anything runs: Dashi's signature on the index; the package's size and sha256;
