@@ -25,23 +25,58 @@ const MANIFEST = {
   permissions: ["network"],
 };
 
-/** An applet's source, packed and signed as `dashi-applet publish` would, and its folder in a catalog. */
-async function catalogWith(signer = author) {
+/** A version of the applet, packed and signed as `dashi-applet publish` would, and written into its folder in the catalog with its applet.json. */
+async function publish(folder: string, manifest: typeof MANIFEST, signer = author) {
   const source = mkdtempSync(join(tmpdir(), "applet-source-"));
   mkdirSync(join(source, "src"));
-  writeFileSync(join(source, "applet.json"), JSON.stringify(MANIFEST));
-  writeFileSync(join(source, "src/main.ts"), 'console.log("21°");\n');
+  writeFileSync(join(source, "applet.json"), JSON.stringify(manifest));
+  writeFileSync(join(source, "src/main.ts"), `console.log("${manifest.version}");\n`);
   const packed = await pack(source);
+  mkdirSync(join(folder, "versions"), { recursive: true });
+  writeFileSync(join(folder, "applet.json"), JSON.stringify(manifest));
+  const version = { sha256: packed.sha256, size: packed.bytes.byteLength, released: "2026-11-04", bun: Bun.version };
+  writeFileSync(join(folder, `versions/${manifest.version}.json`), JSON.stringify(version));
+  writeFileSync(join(folder, `versions/${manifest.version}.minisig`), sign(packed.bytes, signer.secretKey, trustedComment(manifest, packed.sha256)));
+  return packed;
+}
+
+/** A catalog with the applet's first version in it. */
+async function catalogWith(signer = author) {
   const root = mkdtempSync(join(tmpdir(), "catalog-"));
   const folder = join(root, "applets", MANIFEST.id);
-  mkdirSync(join(folder, "versions"), { recursive: true });
-  writeFileSync(join(folder, "applet.json"), JSON.stringify(MANIFEST));
+  mkdirSync(folder, { recursive: true });
   writeFileSync(join(folder, "source.json"), JSON.stringify({ url: "https://github.com/alex-kim/weather", commit: "0123456789abcdef0123456789abcdef01234567" }));
   writeFileSync(join(folder, "author.pub"), author.publicKey);
-  writeFileSync(join(folder, "versions/0.1.0.json"), JSON.stringify({ sha256: packed.sha256, size: packed.bytes.byteLength, released: "2026-11-04", bun: Bun.version }));
-  writeFileSync(join(folder, "versions/0.1.0.minisig"), sign(packed.bytes, signer.secretKey, trustedComment(MANIFEST, packed.sha256)));
+  const packed = await publish(folder, MANIFEST, signer);
   return { root, folder, packed };
 }
+
+/**
+ * git in a throwaway catalog: its own empty config (no one's global or
+ * system settings), and a made-up committer, so the history is the test's.
+ */
+function git(root: string, ...args: string[]): void {
+  const run = Bun.spawnSync(["git", ...args], {
+    cwd: root,
+    stdout: "pipe",
+    stderr: "pipe",
+    env: {
+      ...process.env,
+      GIT_CONFIG_GLOBAL: "/dev/null",
+      GIT_CONFIG_NOSYSTEM: "1",
+      GIT_AUTHOR_NAME: "Catalog Test",
+      GIT_AUTHOR_EMAIL: "catalog-test@example.invalid",
+      GIT_COMMITTER_NAME: "Catalog Test",
+      GIT_COMMITTER_EMAIL: "catalog-test@example.invalid",
+    },
+  });
+  if (run.exitCode !== 0) throw new Error(`git ${args.join(" ")}: ${run.stderr.toString()}`);
+}
+
+const commitAll = (root: string, message: string): void => {
+  git(root, "add", "-A");
+  git(root, "commit", "-q", "-m", message);
+};
 
 test("a folder reads, its signature is its author's, and the index built from it checks as the store checks it", async () => {
   const { root, packed } = await catalogWith();
@@ -100,4 +135,32 @@ test("the rebuild points an applet's SDK and mirin dependencies at CI's checkout
     "@mirinjs/metal": "file:/ci/mirin/packages/mirin-metal",
     react: "^19.2.0",
   });
+});
+
+test("each version keeps the Dashi range its own applet.json named, from main's history", async () => {
+  const { root, folder } = await catalogWith();
+  git(root, "init", "-q", "-b", "main");
+  commitAll(root, "weather 0.1.0");
+  // A pull request's commits along the way aren't main's: one that said 0.1.0 needed only Dashi 0.1 is never believed.
+  git(root, "switch", "-q", "-c", "publish/weather-0.2.0");
+  writeFileSync(join(folder, "applet.json"), JSON.stringify({ ...MANIFEST, dashi: ">=0.1" }));
+  commitAll(root, "weather 0.1.0, any Dashi");
+  await publish(folder, { ...MANIFEST, version: "0.2.0", dashi: ">=0.5" });
+  commitAll(root, "weather 0.2.0");
+  git(root, "switch", "-q", "main");
+  git(root, "merge", "-q", "--no-ff", "-m", "Merge weather 0.2.0", "publish/weather-0.2.0");
+
+  const index = buildIndex(root, "Netko-Labs/dashi-applets");
+  const listed = index.applets[0]?.versions.map(({ version, dashi }) => ({ version, dashi }));
+  expect(listed).toEqual([
+    { version: "0.2.0", dashi: ">=0.5" },
+    { version: "0.1.0", dashi: ">=0.4" },
+  ]);
+});
+
+test("a version whose range no applet.json names is refused, not given the newest one's", async () => {
+  // No history at all: 0.1.0's applet.json is gone, and nothing says what it needed.
+  const { root, folder } = await catalogWith();
+  await publish(folder, { ...MANIFEST, version: "0.2.0", dashi: ">=0.5" });
+  expect(() => buildIndex(root, "Netko-Labs/dashi-applets")).toThrow("dev.example.weather 0.1.0: no applet.json in the history names 0.1.0");
 });
