@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { buildIndex } from "../scripts/build-index.ts";
@@ -163,4 +163,13 @@ test("a version whose range no applet.json names is refused, not given the newes
   const { root, folder } = await catalogWith();
   await publish(folder, { ...MANIFEST, version: "0.2.0", dashi: ">=0.5" });
   expect(() => buildIndex(root, "Netko-Labs/dashi-applets")).toThrow("dev.example.weather 0.1.0: no applet.json in the history names 0.1.0");
+});
+
+test("an entry Dashi's store would skip fails the build", async () => {
+  // The folder reads, but the store's parser refuses the entry (notes longer than it reads): Dashi 0.5 would leave it out and list the rest.
+  const { root, folder } = await catalogWith();
+  const version = JSON.parse(readFileSync(join(folder, "versions/0.1.0.json"), "utf8")) as Record<string, unknown>;
+  writeFileSync(join(folder, "versions/0.1.0.json"), JSON.stringify({ ...version, notes: "Rain. ".repeat(400) }));
+  expect(readCatalog(root).problems).toEqual([]);
+  expect(() => buildIndex(root, "Netko-Labs/dashi-applets")).toThrow("notes is longer than 2000 characters");
 });

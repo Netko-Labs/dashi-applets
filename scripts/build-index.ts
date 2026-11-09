@@ -4,6 +4,13 @@
  * release assets' and raw files' addresses on GitHub. CI signs it with
  * Dashi's key using the minisign tool; --sign-with signs it with an
  * unencrypted key, for tests and test catalogs only.
+ *
+ * Every entry is read here with the Dashi parser beside the catalog
+ * (`../dashiOS`, CI's checkout of main) before anything is written. Dashi
+ * 0.5's store skips an entry it can't read and lists the rest ("1 applet
+ * needs a newer Dashi"), so the index would still check out with a bad entry
+ * in it: here a skipped entry fails the build, and a bad entry never ships
+ * unnoticed.
  */
 
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -81,6 +88,14 @@ export function buildIndex(root: string, repo: string, now = new Date()): Catalo
   // What the store will parse, parsed here first: a bad index never ships.
   const index = parseIndex(value);
   if ("error" in index) throw new Error(`the index doesn't parse: ${index.error}`);
+  // From Dashi 0.5 the parser skips an entry it can't read instead of refusing the index; here, that is still a refusal.
+  const skipped = "skipped" in index ? (index.skipped as Array<{ id: string | null; reason: string }>) : [];
+  if (skipped.length > 0)
+    throw new Error(
+      skipped
+        .map(({ id, reason }) => `${id ?? "an applet"}: Dashi's store would skip it ("needs a newer Dashi") and list the rest: ${reason}`)
+        .join("\n"),
+    );
   return value as unknown as CatalogIndex;
 }
 
@@ -91,7 +106,14 @@ if (import.meta.main) {
     return at >= 0 ? args[at + 1] : undefined;
   };
   const out = flag("--out") ?? "dist";
-  const index = buildIndex(process.cwd(), flag("--repo") ?? "Netko-Labs/dashi-applets");
+  let index: CatalogIndex;
+  try {
+    index = buildIndex(process.cwd(), flag("--repo") ?? "Netko-Labs/dashi-applets");
+  } catch (error) {
+    for (const line of (error instanceof Error ? error.message : String(error)).split("\n")) console.error(`✗ ${line}`);
+    console.error("✗ no index was written");
+    process.exit(1);
+  }
   mkdirSync(out, { recursive: true });
   const bytes = new TextEncoder().encode(`${JSON.stringify(index, null, 2)}\n`);
   writeFileSync(join(out, "index.json"), bytes);
